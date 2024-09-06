@@ -1,3 +1,5 @@
+
+import warnings
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -5,6 +7,10 @@ import statsmodels.api as sm
 import pandas_datareader as pdr
 from rich.console import Console
 from rich.table import Table
+
+
+# surpressing future warnings
+warnings.filterwarnings("ignore")
 
 # Function to get the stock ticker input
 def get_ticker_input():
@@ -51,54 +57,86 @@ def cost_equity(ticker):
 
 # Function to calculate WACC
 def wacc(ticker, return_equity):
+    
     stock = yf.Ticker(ticker)
-    quarterly_bs = stock.quarterly_balance_sheet
-    quarterly_is = stock.quarterly_financials
+    annual_bs = stock.balance_sheet
+    annual_is = stock.financials
 
     # Extract financial data
-    total_debt = quarterly_bs.loc["Total Debt"].iloc[0]
-    total_equity = quarterly_bs.loc["Total Equity Gross Minority Interest"].iloc[0]
-    tax_provision = quarterly_is.loc["Tax Provision"].iloc[0]
-    ebit = quarterly_is.loc["EBIT"].iloc[0]
+    total_debt = annual_bs.loc["Total Debt"].iloc[0]
+    total_equity = annual_bs.loc["Total Equity Gross Minority Interest"].iloc[0]
+    tax_provision = annual_is.loc["Tax Provision"].iloc[0]
+    ebit = annual_is.loc["EBIT"].iloc[0]
 
     # Calculate the tax rate
     tax_rate = tax_provision / ebit
 
     # Find the most recent non-NaN interest expense
-    interest_expense = quarterly_is.loc["Interest Expense"].dropna().iloc[0]
+    interest_expense = annual_is.loc["Interest Expense"].dropna().iloc[0]
     cost_debt = interest_expense / total_debt
 
     # Calculate WACC
     wacc_value = (total_debt / (total_debt + total_equity) * cost_debt) * (1 - tax_rate) + \
                  (total_equity / (total_debt + total_equity) * (return_equity / 100))
     
-    return wacc_value * 100  # Multiply by 100 to get percentage
+    return wacc_value * 100, tax_rate, ebit, stock, total_debt, annual_bs  # Multiply by 100 to get percentage
+ 
+def free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs):
+	
+	annual_cf = stock.cashflow  # corrected to 'cashflow'
+	
+	# Depreciation
+	depreciation = annual_cf.loc["Depreciation Amortization Depletion"].iloc[0]
+	
+	# CapEx and NWC (fixed typo for Capital Expenditure)
+	capX = annual_cf.loc["Capital Expenditure"].iloc[0]
+	
+	current_assets = annual_bs.loc["Current Assets"].iloc[0]
+	current_liabilities = annual_bs.loc["Current Liabilities"].iloc[0]
+	changeNWC = current_assets - current_liabilities
+	
+	# FCFF Calculation
+	fcff = ebit * (1 - tax_rate) + depreciation - capX - changeNWC
+	
+	return fcff
+
+
+def intrinsic_value(ticker, fcff, wacc_value):
+	x = 12
 
 # Function to display table with rich
-def table_display(wacc_value, return_equity):
+def table_display(ticker, wacc_value, return_equity, fcff_value):  # add fcff_value as parameter
     console = Console()
     
     # Create table
-    table = Table(title="===Financial Data Debug===", style="bold cyan")
+    table = Table(title=f"===Financial Data For {ticker}", style="bold cyan")
     
     # Column for financial and values
     table.add_column("Financial", justify="left", style="green")
-    table.add_column("Value", justify="left", style="yellow")
+    table.add_column("Calculation", justify="left", style="yellow")
     
     # rows for financial data
     table.add_row("WACC", f"{wacc_value:.2f}%")
     table.add_row("Cost of Equity", f"{return_equity:.2f}%")
+    table.add_row("Free Cash Flow To The Firm", f"${fcff_value}")  # correctly formatted
     
     # print table
     console.print(table)
 
+
 def main():
-    ticker = get_ticker_input()  # Corrected to call get_ticker_input instead of itself
-    return_equity = cost_equity(ticker)
-    wacc_value = wacc(ticker, return_equity)
     
-    # Display table
-    table_display(wacc_value, return_equity)
+    ticker = get_ticker_input()
+    return_equity = cost_equity(ticker)
+    
+    # Unpack all the values returned by wacc function
+    wacc_value, tax_rate, ebit, stock, total_debt, annual_bs = wacc(ticker, return_equity)
+    
+    # Calculate FCFF
+    fcff_value = free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs)
+    
+    # Display table with WACC, COE, and FCFF values
+    table_display(ticker, wacc_value, return_equity, fcff_value)
     
 if __name__ == "__main__":
     main()
