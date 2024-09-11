@@ -1,5 +1,5 @@
-
 import warnings
+import math
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -62,24 +62,32 @@ def wacc(ticker, return_equity):
     annual_bs = stock.balance_sheet
     annual_is = stock.financials
 
-    # Extract financial data
-    total_debt = annual_bs.loc["Total Debt"].iloc[0]
-    total_equity = annual_bs.loc["Total Equity Gross Minority Interest"].iloc[0]
+    # Market Cap
+    total_equity = stock.info['marketCap']
+    
     tax_provision = annual_is.loc["Tax Provision"].iloc[0]
-    ebit = annual_is.loc["EBIT"].iloc[0]
+    ebt = annual_is.loc["Pretax Income"].iloc[0]
 
     # Calculate the tax rate
-    tax_rate = tax_provision / ebit
+    
+    tax_rate = tax_provision / ebt
 
-    # Find the most recent non-NaN interest expense
+    # Debt Calculations
+    bs_debt = annual_bs.loc["Total Debt"].iloc[0]
     interest_expense = annual_is.loc["Interest Expense"].dropna().iloc[0]
-    cost_debt = interest_expense / total_debt
+    pre_tax_cd = interest_expense / bs_debt
+    cost_debt = pre_tax_cd * (1-tax_rate)
+    avg_interest_rate = interest_expense / bs_debt
+    
+    # Mkt Value of Debt
+    
+    total_debt = interest_expense * ((1 / ((1 + cost_debt)**avg_interest_rate)) / cost_debt) + (bs_debt / ((1 + cost_debt)**avg_interest_rate))
 
     # Calculate WACC
     wacc_value = (total_debt / (total_debt + total_equity) * cost_debt) * (1 - tax_rate) + \
                  (total_equity / (total_debt + total_equity) * (return_equity / 100))
     
-    return wacc_value * 100, tax_rate, ebit, stock, total_debt, annual_bs  # Multiply by 100 to get percentage
+    return wacc_value * 100, tax_rate, ebt, stock, total_debt, annual_bs  # Multiply by 100 to get percentage
  
 def free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs):
 	
@@ -100,16 +108,31 @@ def free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs):
 	
 	return fcff
 
+def discounted_cash_flow(ticker, fcff_value, wacc_value):
+	
+	# For determining the size of the growth period array
+	p_vector_size = int(input("Enter how many different growth periods there will be before a terminal value is calculated? : "))
+	
+	# Create a list of the given size, initialized with 0's
+	period_vector = [0] * p_vector_size
 
-def intrinsic_value(ticker, fcff, wacc_value):
-	x = 12
+	
+	for i in range(p_vector_size):
+		if i == 0:
+			# Create wacc period and insert periods into growth time period vector
+			wacc_per = input(f"Enter how many years you expect {ticker} to grow at {wacc_value}?: ")
+			period_vector[0] = wacc_per
+		else:
+			period_vector[i] = input(f"Enter in the time-length for growth period #{i}: ")
+	print(period_vector)
+	
 
 # Function to display table with rich
 def table_display(ticker, wacc_value, return_equity, fcff_value):  # add fcff_value as parameter
     console = Console()
     
     # Create table
-    table = Table(title=f"===Financial Data For {ticker}", style="bold cyan")
+    table = Table(title=f"===Financial Data For {ticker}===", style="bold cyan")
     
     # Column for financial and values
     table.add_column("Financial", justify="left", style="green")
@@ -137,6 +160,8 @@ def main():
     
     # Display table with WACC, COE, and FCFF values
     table_display(ticker, wacc_value, return_equity, fcff_value)
+    
+    discounted_cash_flow(ticker, fcff_value, wacc_value)
     
 if __name__ == "__main__":
     main()
