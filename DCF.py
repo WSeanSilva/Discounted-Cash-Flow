@@ -8,6 +8,9 @@ import pandas_datareader as pdr
 from rich.console import Console
 from rich.table import Table
 
+console = Console()
+
+
 
 # surpressing future warnings
 warnings.filterwarnings("ignore")
@@ -115,21 +118,35 @@ def discounted_cash_flow(ticker, fcff_value, wacc_value):
 	
 	# Create a list of the given size, initialized with 0's
 	period_vector = [0] * p_vector_size
-
-	
 	for i in range(p_vector_size):
 		if i == 0:
 			# Create wacc period and insert periods into growth time period vector
-			wacc_per = input(f"Enter how many years you expect {ticker} to grow at {wacc_value}?: ")
+			wacc_per = input(f"Enter how many years you expect {ticker} to grow at {wacc_value} (WACC)?: ")
 			period_vector[0] = wacc_per
 		else:
-			period_vector[i] = input(f"Enter in the time-length for growth period #{i}: ")
-	print(period_vector)
+			period_vector[i] = input(f"Enter in the time-length for growth period #{i+1}: ")
+	console.print(period_vector)
+
+	# Create another list, this time for storing growth rate values
+	growth_vector = [0] * p_vector_size
+	for i in range(p_vector_size):
+		if i == 0:
+			growth_vector[0] = wacc_value
+		else:
+			growth_vector[i] = input(f"Enter in the growth rate for period #{i+1}: ")
+	console.print(growth_vector)
+	
+	# Create terminal growth rate for constant growth after last period
+	terminal_growth = float(input("Enter the terminal growth rate after the last growth period (e.g. 0.03 for 3%): "))
+	
+	# Discounted cash flow total initialization
+	dcf_total = 0
+	
+	
 	
 
 # Function to display table with rich
 def table_display(ticker, wacc_value, return_equity, fcff_value):  # add fcff_value as parameter
-    console = Console()
     
     # Create table
     table = Table(title=f"===Financial Data For {ticker}===", style="bold cyan")
