@@ -111,42 +111,74 @@ def free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs):
 	
 	return fcff
 
-def discounted_cash_flow(ticker, fcff_value, wacc_value):
-	
-	# For determining the size of the growth period array
-	p_vector_size = int(input("Enter how many different growth periods there will be before a terminal value is calculated? : "))
-	
-	# Create a list of the given size, initialized with 0's
-	period_vector = [0] * p_vector_size
-	for i in range(p_vector_size):
-		if i == 0:
-			# Create wacc period and insert periods into growth time period vector
-			wacc_per = input(f"Enter how many years you expect {ticker} to grow at {wacc_value} (WACC)?: ")
-			period_vector[0] = wacc_per
-		else:
-			period_vector[i] = input(f"Enter in the time-length for growth period #{i+1}: ")
-	console.print(period_vector)
 
-	# Create another list, this time for storing growth rate values
-	growth_vector = [0] * p_vector_size
-	for i in range(p_vector_size):
-		if i == 0:
-			growth_vector[0] = wacc_value
-		else:
-			growth_vector[i] = input(f"Enter in the growth rate for period #{i+1}: ")
-	console.print(growth_vector)
-	
-	# Create terminal growth rate for constant growth after last period
-	terminal_growth = float(input("Enter the terminal growth rate after the last growth period (e.g. 0.03 for 3%): "))
-	
-	# Discounted cash flow total initialization
-	dcf_total = 0
-	
+
+
+def discounted_cash_flow(ticker, fcff_value, wacc_value):
+    
+    # For determining the size of the growth period array
+    p_vector_size = int(input("Enter how many different growth periods there will be before a terminal value is calculated? : "))
+    
+    # Create a list of the given size, initialized with 0's
+    period_vector = [0] * p_vector_size
+    for i in range(p_vector_size):
+        if i == 0:
+            # Create wacc period and insert periods into growth time period vector
+            wacc_per = int(input(f"Enter how many years you expect {ticker} to grow at {wacc_value} (WACC)?: "))
+            period_vector[0] = wacc_per
+        else:
+            period_vector[i] = int(input(f"Enter the time-length for growth period #{i+1}: "))
+    print(f"Growth periods: {period_vector}")
+
+    # Create another list, this time for storing growth rate values
+    growth_vector = [0] * p_vector_size
+    for i in range(p_vector_size):
+        if i == 0:
+            growth_vector[0] = wacc_value  # Assuming WACC as the initial growth rate
+        else:
+            growth_vector[i] = float(input(f"Enter the growth rate for period #{i+1} (e.g. 0.05 for 5%): "))
+    print(f"Growth rates: {growth_vector}")
+    
+    # Create terminal growth rate for constant growth after last period
+    terminal_growth = float(input("Enter the terminal growth rate after the last growth period (e.g. 0.03 for 3%): "))
+    
+    # Now calculate the intrinsic value
+    intrinsic_value = 0
+    current_fcff = fcff_value
+    
+    # Discount free cash flows for each period
+    year = 1
+    for i in range(p_vector_size):
+        for j in range(period_vector[i]):
+            # Calculate discounted FCFF for the year
+            discounted_fcff = current_fcff / ((1 + wacc_value) ** year)
+            intrinsic_value += discounted_fcff
+            # Update FCFF for the next year
+            current_fcff *= (1 + growth_vector[i])
+            year += 1
+    
+    # Calculate terminal value using perpetuity formula and discount it back to present value
+    terminal_value = (current_fcff * (1 + terminal_growth)) / (wacc_value - terminal_growth)
+    discounted_terminal_value = terminal_value / ((1 + wacc_value) ** year)
+    
+    # Add terminal value to intrinsic value
+    intrinsic_value += discounted_terminal_value
+    
+    # Get the number of shares outstanding from yfinance
+    stock = yf.Ticker(ticker)
+    shares = stock.info.get('sharesOutstanding', 'N/A')
+    
+    # Calculate estimated price per share
+    estimated_price = intrinsic_value / shares if shares != 'N/A' else 'N/A'
+    
+    return intrinsic_value, estimated_price
+
+
 	
 	
 
 # Function to display table with rich
-def table_display(ticker, wacc_value, return_equity, fcff_value):  # add fcff_value as parameter
+def table_display(ticker, wacc_value, return_equity, fcff_value, intrinsic_value, estimated_price):  # add fcff_value as parameter
     
     # Create table
     table = Table(title=f"===Financial Data For {ticker}===", style="bold cyan")
@@ -158,14 +190,15 @@ def table_display(ticker, wacc_value, return_equity, fcff_value):  # add fcff_va
     # rows for financial data
     table.add_row("WACC", f"{wacc_value:.2f}%")
     table.add_row("Cost of Equity", f"{return_equity:.2f}%")
-    table.add_row("Free Cash Flow To The Firm", f"${fcff_value}")  # correctly formatted
+    table.add_row("Free Cash Flow To The Firm", f"${fcff_value}") 
+    table.add_row("Instrinsic Value", f"${intrinsic_value}")  
+    table.add_row("Estimated Price Per Share", f"${estimated_price}")  
     
     # print table
     console.print(table)
 
 
 def main():
-    
     ticker = get_ticker_input()
     return_equity = cost_equity(ticker)
     
@@ -175,10 +208,11 @@ def main():
     # Calculate FCFF
     fcff_value = free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs)
     
-    # Display table with WACC, COE, and FCFF values
-    table_display(ticker, wacc_value, return_equity, fcff_value)
+    # Calculate intrinsic value and estimated price per share using DCF
+    intrinsic_value, estimated_price = discounted_cash_flow(ticker, fcff_value, wacc_value)
     
-    discounted_cash_flow(ticker, fcff_value, wacc_value)
+    # Display table with WACC, COE, FCFF, intrinsic value, and estimated price
+    table_display(ticker, wacc_value, return_equity, fcff_value, intrinsic_value, estimated_price)
     
 if __name__ == "__main__":
     main()
