@@ -10,15 +10,15 @@ from rich.table import Table
 
 console = Console()
 
-
-
 # surpressing future warnings
 warnings.filterwarnings("ignore")
+
 
 # Function to get the stock ticker input
 def get_ticker_input():
     ticker = input("Enter the stock ticker of choice: ")
     return ticker
+
 
 # Function to calculate cost of equity using Fama-French 3-Factor model
 def cost_equity(ticker):
@@ -58,6 +58,8 @@ def cost_equity(ticker):
     f3COE = Rf + (h3Beta * Emrp) + (Bsmb * ErSMB) + (Bhml * ErHML)
     return f3COE * 12 * 100
 
+
+
 # Function to calculate WACC
 def wacc(ticker, return_equity):
     
@@ -91,7 +93,9 @@ def wacc(ticker, return_equity):
                  (total_equity / (total_debt + total_equity) * (return_equity / 100))
     
     return wacc_value * 100, tax_rate, ebt, stock, total_debt, annual_bs  # Multiply by 100 to get percentage
- 
+
+
+
 def free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs):
 	
 	annual_cf = stock.cashflow  # corrected to 'cashflow'
@@ -110,8 +114,6 @@ def free_cash_flow(ticker, tax_rate, ebit, stock, total_debt, annual_bs):
 	fcff = ebit * (1 - tax_rate) + depreciation - capX - changeNWC
 	
 	return fcff
-
-
 
 
 def discounted_cash_flow(ticker, fcff_value, wacc_value):
@@ -173,9 +175,6 @@ def discounted_cash_flow(ticker, fcff_value, wacc_value):
     
     return intrinsic_value, estimated_price
 
-
-	
-	
 
 # Function to display table with rich
 def table_display(ticker, wacc_value, return_equity, fcff_value, intrinsic_value, estimated_price):  # add fcff_value as parameter
